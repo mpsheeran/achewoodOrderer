@@ -5,6 +5,7 @@ import requests
 #import heapq
 import re
 import ast
+from time import sleep
 
 # define list of sites to scan
 achewood_url = 'http://achewood.com/list.php'
@@ -40,7 +41,8 @@ def main():
         href = link.get('href')
         if href:
             if 'index.php?' in href:
-                post_urls.append('http://achewood.com/{}'.format(href))
+                url = 'http://achewood.com/{}'.format(href)
+                post_urls.append({'url': url, 'published':get_iso_datetime_from_achewood_url(url)})
 
     print("Added {} urls".format(len(post_urls)))
 
@@ -63,35 +65,38 @@ def main():
         response_dict = get_response_dict_from_url(request_url)
 
         if response_dict['nextPageToken']:
-            print('entering recursion with page token: {}'.format(response_dict['nextPageToken']))
-            full_response = paginated_recurse(request_url, response_dict)
+            # print('entering recursion with page token: {}'.format(response_dict['nextPageToken']))
+            full_response = paginated_recurse(request_url, response_dict['items'], response_dict['nextPageToken'])
 
-        print(full_response)
+        post_urls.extend(full_response)
+        print('Finished collecting posts from {}. Sleeping 10s'.format(blog_url))
+
+    sorted_url_list = [entry['url'] for entry in sorted(post_urls, key=lambda k: k['published'])]
+
+    print(sorted_url_list)
 
 
-    # build data structure to store urls to sort - we'll use a heap
+def paginated_recurse(url, response, nextPageToken):
 
-    # extract publication date for each entry on each site
-    # return urls in usable sorted order
-def get_publish_date(url):
-    return None
+    if not nextPageToken:
+        return response
 
-# assumes response['nextPageToken'] returns a valid page token
-def paginated_recurse(url, response):
+    else:
+        request_url = '{}&pageToken={}'.format(url, nextPageToken)
 
-    request_url = '{}&PageToken={}'.format(url, response['nextPageToken'])
-    print(request_url)
+        current_response = get_response_dict_from_url(request_url)
 
-    current_response = get_response_dict_from_url(request_url)
+        try:
+            current_response['items'].extend(response)
+        except KeyError:
+            return response
 
-    try:
-        print(current_response['nextPageToken'])  # hacky
-        current_response['items'] += response['items']
+        try:
+            npt = current_response['nextPageToken']
+        except KeyError:
+            npt = None
 
-    except KeyError:
-        return current_response
-
-    paginated_recurse(url, current_response)
+        return paginated_recurse(url, current_response['items'], npt)
 
 
 def get_response_dict_from_url(url):
@@ -104,6 +109,12 @@ def get_response_dict_from_url(url):
     response_dict = ast.literal_eval(response_text)
     return response_dict
 
+def get_iso_datetime_from_achewood_url(url):
+    date = str(url).split('=')[1]
+    year = str(date)[4:9]
+    day = str(date)[2:4]
+    month = str(date)[0:2]
+    return '{}-{}-{} 00:00:00'.format(year, month, day)
 
 if __name__ == "__main__":
     main()

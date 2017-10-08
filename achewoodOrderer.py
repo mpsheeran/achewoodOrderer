@@ -17,7 +17,8 @@ def main():
 
     sorted_url_list = [entry['url'] for entry in sorted(post_urls, key=lambda k: k['published'])]
 
-    print(sorted_url_list)
+    for url in sorted_url_list:
+        print(url)
 
 
 def get_response_dict_from_url(url):
